@@ -2,20 +2,30 @@ from pypylon import pylon
 import cv2 as cv
 import distDetect
 import time
+from functools import partial
 
-phase = 'idle'
+phase_dict = {0: 'LBUTTON click to give point 1', 1: 'give second point', 2: 'calculating distance'}
 imgpts = []
 pt_r = 20
 fx = fy = 0.25
+cv.circle = partial(cv.circle, color=(0, 0, 255),
+                    thickness=int(0.2 * pt_r), lineType=cv.LINE_AA)
+cv.line = partial(cv.line, color=(0, 0, 255),
+                  thickness=int(0.2 * pt_r), lineType=cv.LINE_AA)
 
 # mouse callback function
+#! point coordinate based on original image
 def draw(event, x, y, flags, param):
     global phase, imgpts
-    if event == cv.EVENT_LBUTTONDOWN:
-        imgpts.append((int(x/fx), int(y/fy))) # original image
-        phase = f'point {len(imgpts)} acquired'
+    draw.x, draw.y = int(x/fx), int(y/fy)
+    if len(imgpts) != 2:
+        if event == cv.EVENT_LBUTTONDOWN:
+            imgpts.append((int(x/fx), int(y/fy))) 
+            phase = f'point {len(imgpts)} acquired'
 
-            
+
+draw.x = draw.y = 0
+
 
 def init_stereo_cam():
     tup = pylon.TlFactory.GetInstance().EnumerateDevices()
@@ -42,6 +52,8 @@ def init_stereo_cam():
     return cam_L, cam_R
 
 cam_L, cam_R = init_stereo_cam()
+cam_L.AcquisitionFrameRate.SetValue(6)
+cam_R.AcquisitionFrameRate.SetValue(6)
 
 converter = pylon.ImageFormatConverter()
 # converting to opencv bgr format
@@ -60,37 +72,46 @@ while cam_L.IsGrabbing() and cam_R.IsGrabbing():
     
     print(grabResultL.GrabSucceeded(), grabResultR.GrabSucceeded())
 
-    if grabResultL.GrabSucceeded() and grabResultR.GrabSucceeded():
-        # Access the image data
+    if grabResultL.GrabSucceeded() and grabResultR.GrabSucceeded(): # update image
         image0 = converter.Convert(grabResultL)
-        img0 = image0.GetArray()
+        ori_img0 = image0.GetArray()
 
         image1 = converter.Convert(grabResultR)
-        img1 = image1.GetArray()
+        ori_img1 = image1.GetArray()
 
-        for pt in imgpts:
-            img0 = cv.circle(img0, pt, pt_r, (0, 0, 255),
-                             thickness=int(0.2 * pt_r), lineType=cv.LINE_AA)
-        cv.setWindowTitle('cam_L', phase)
-        cv.setWindowTitle('cam_R', phase)
-        # img0, img1 = distDetect.rectifyImage(img0, img1)
+    img0, img1 = ori_img0.copy(), ori_img1.copy()  # start proc
+    mousept = (draw.x, draw.y)
+    if len(imgpts) == 0:
+        img0 = cv.circle(img0, mousept, pt_r)
+    elif len(imgpts) == 1:
+        img0 = cv.circle(img0, imgpts[0], pt_r)
+        img0 = cv.circle(img0, mousept, pt_r)
+        img0 = cv.line(img0, imgpts[0], mousept)
+    elif len(imgpts) == 2:
+        img0 = cv.circle(img0, imgpts[0], pt_r)
+        img0 = cv.circle(img0, imgpts[1], pt_r)
+        img0 = cv.line(img0, imgpts[0], imgpts[1])
+    else: raise AssertionError()
 
-        vimg0 = cv.resize(img0, None, fx=fx, fy=fy)
-        vimg1 = cv.resize(img1, None, fx=fx, fy=fy)
-        cv.imshow('cam_L', vimg0)
-        cv.imshow('cam_R', vimg1)
+    cv.setWindowTitle('cam_L', phase_dict[len(imgpts)])
+    # cv.setWindowTitle 'cam_R'
+    # img0, img1 = distDetect.rectifyImage(img0, img1)
 
-        k = cv.waitKey(1)
-        if k == 27:  # ESC
-            break
+    vimg0 = cv.resize(img0, None, fx=fx, fy=fy)
+    vimg1 = cv.resize(img1, None, fx=fx, fy=fy)
+    cv.imshow('cam_L', vimg0)
+    cv.imshow('cam_R', vimg1)
+
+    k = cv.waitKey(1)
+    if k == 27:  # ESC
+        break
+    if k == ord('r'):
+        imgpts = []
     grabResultL.Release()
     grabResultR.Release()
-    time.sleep(0.1)
 
 # Releasing the resource
 cam_L.StopGrabbing()
 cam_R.StopGrabbing()
 
 cv.destroyAllWindows()
-
-
