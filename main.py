@@ -80,6 +80,8 @@ while cam_L.IsGrabbing() and cam_R.IsGrabbing():
         ori_img1 = image1.GetArray()
 
     img0, img1 = ori_img0.copy(), ori_img1.copy()  # start proc
+    img0, img1 = distDetect.rectifyImage(img0, img1)
+
     mousept = (draw.x, draw.y)
     if len(imgpts) == 0:
         img0 = cv.circle(img0, mousept, pt_r)
@@ -88,6 +90,8 @@ while cam_L.IsGrabbing() and cam_R.IsGrabbing():
         img0 = cv.circle(img0, mousept, pt_r)
         img0 = cv.line(img0, imgpts[0], mousept)
     elif len(imgpts) == 2:
+        if phase_dict[2] == 'calculating distance':
+            phase_dict[2] += f': {distDetect.getDistance(img0, img1, imgpts[0], imgpts[1])}'
         img0 = cv.circle(img0, imgpts[0], pt_r)
         img0 = cv.circle(img0, imgpts[1], pt_r)
         img0 = cv.line(img0, imgpts[0], imgpts[1])
@@ -95,7 +99,6 @@ while cam_L.IsGrabbing() and cam_R.IsGrabbing():
 
     cv.setWindowTitle('cam_L', phase_dict[len(imgpts)])
     # cv.setWindowTitle 'cam_R'
-    # img0, img1 = distDetect.rectifyImage(img0, img1)
 
     vimg0 = cv.resize(img0, None, fx=fx, fy=fy)
     vimg1 = cv.resize(img1, None, fx=fx, fy=fy)
@@ -107,6 +110,7 @@ while cam_L.IsGrabbing() and cam_R.IsGrabbing():
         break
     if k == ord('r'):
         imgpts = []
+        phase_dict[2] = 'calculating distance'
     grabResultL.Release()
     grabResultR.Release()
 
