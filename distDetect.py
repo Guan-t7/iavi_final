@@ -31,8 +31,10 @@ def getXYZ(img1, img2, p):
     )
 
     disparity = stereo.compute(imgL, imgR)
-    disparity1 = cv.resize(disparity, None, fx = 0.25, fy = 0.25)
-    cv.imshow('disparity', disparity1)
+    disparity = cv.convertScaleAbs(disparity, alpha=255/disparity.max())
+    disp_colored = cv.applyColorMap(disparity, cv.COLORMAP_JET)
+    disp_colored = cv.resize(disp_colored, None, fx=0.25, fy=0.25)
+    cv.imshow('disparity', disp_colored)
     # disparity.convertTo(dispf, cv.CV_32F, 1.0/16.0)
     dispf = np.float32(disparity)
     dispf = dispf * 1.0/16.0
