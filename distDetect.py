@@ -15,8 +15,24 @@ def getXYZ(img1, img2, p):
     imgR = cv.cvtColor(img2, cv.COLOR_BGR2GRAY)
     num = 4
     blockSize = 11
-    stereo = cv.StereoBM_create(numDisparities=16*num, blockSize=blockSize)
+    # stereo = cv.StereoBM_create(numDisparities=16*num, blockSize=blockSize)
+    window_size = 3
+    min_disp = 48
+    num_disp = 112-min_disp
+    stereo = cv.StereoSGBM_create(minDisparity = min_disp,
+        numDisparities = num_disp,
+        blockSize = 16,
+        P1 = 8*3*window_size**2,
+        P2 = 32*3*window_size**2,
+        disp12MaxDiff = 1,
+        uniquenessRatio = 10,
+        speckleWindowSize = 100,
+        speckleRange = 32
+    )
+
     disparity = stereo.compute(imgL, imgR)
+    disparity1 = cv.resize(disparity, None, fx = 0.25, fy = 0.25)
+    cv.imshow('disparity', disparity1)
     # disparity.convertTo(dispf, cv.CV_32F, 1.0/16.0)
     dispf = np.float32(disparity)
     dispf = dispf * 1.0/16.0

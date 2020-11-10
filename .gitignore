@@ -4,3 +4,5 @@ __pycache__/distDetect.cpython-36.pyc
 .vscode/.ropeproject/config.py
 .vscode/.ropeproject/objectdb
 *.ipynb
+__pycache__/distDetect.cpython-38.pyc
+__pycache__/camera_configs.cpython-38.pyc
