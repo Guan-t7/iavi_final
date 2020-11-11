@@ -13,8 +13,8 @@ def rectifyImage(imgL, imgR):
 def getXYZ(img1, img2, p):
     imgL = cv.cvtColor(img1, cv.COLOR_BGR2GRAY)
     imgR = cv.cvtColor(img2, cv.COLOR_BGR2GRAY)
-    num = 4
-    blockSize = 11
+    # num = 4
+    # blockSize = 11
     # stereo = cv.StereoBM_create(numDisparities=16*num, blockSize=blockSize)
     '''
     window_size = 18
@@ -33,7 +33,7 @@ def getXYZ(img1, img2, p):
     '''
     
     opencv_measure_version = int(cv.__version__.split('.')[0])
-    windowSize = 7
+    windowSize = 9
     minDisp = 10
     numDisp = 250 - minDisp
     
@@ -62,6 +62,8 @@ def getXYZ(img1, img2, p):
     # calculate disparity
     disparity = stereo.compute(imgGrayL, imgGrayR).astype(np.float32)/16
     disparity = (disparity - minDisp) / numDisp
+
+
     disparity1 = cv.resize(disparity, None, fx=0.25, fy=0.25)
     cv.imshow("disparity", disparity1)
     
@@ -77,6 +79,9 @@ def getXYZ(img1, img2, p):
     # dispf = np.float32(disparity)
     # dispf = dispf * 1.0/16.0
 
+
+    
+
     x = p[0]
     y = p[1]
     z = disparity[p[1],p[0]]
@@ -89,8 +94,10 @@ def getXYZ(img1, img2, p):
     #return np.array([[1],[2],[3]])
 
 def getDistance(imgL, imgR, p1, p2):
+    
     XYZ1 = getXYZ(imgL, imgR, p1)
     XYZ2 = getXYZ(imgL, imgR, p2)
+
     return np.sqrt(np.sum((XYZ1-XYZ2)**2))
 
     

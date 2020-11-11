@@ -3,6 +3,7 @@ import cv2 as cv
 import distDetect
 import time
 from functools import partial
+import numpy as np
 
 phase_dict = {0: 'LBUTTON click to give point 1', 1: 'give second point', 2: 'calculating distance'}
 imgpts = []
