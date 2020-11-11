@@ -6,3 +6,4 @@ __pycache__/distDetect.cpython-36.pyc
 *.ipynb
 __pycache__/distDetect.cpython-38.pyc
 __pycache__/camera_configs.cpython-38.pyc
+workspace.code-workspace
