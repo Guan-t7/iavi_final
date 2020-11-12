@@ -1,5 +1,4 @@
 import numpy as np
-from pypylon import pylon
 import cv2 as cv
 import glob
 import camera_configs as cc
@@ -65,7 +64,7 @@ def getXYZ(img1, img2, p):
 
 
     disparity1 = cv.resize(disparity, None, fx=0.25, fy=0.25)
-    cv.imshow("disparity", disparity1)
+    # cv.imshow("disparity", disparity1)
     
     '''
     disparity = stereo.compute(imgL, imgR)

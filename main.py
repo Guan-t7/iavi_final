@@ -1,11 +1,12 @@
 from pypylon import pylon
 import cv2 as cv
 import distDetect
-import time
+import concurrent.futures
 from functools import partial
 import numpy as np
 
-phase_dict = {0: 'LBUTTON click to give point 1', 1: 'give second point', 2: 'calculating distance'}
+phase_dict = {0: 'LBUTTON click to give point 1',
+              1: 'give second point', 2: 'calculating distance: '}
 imgpts = []
 trackers = []
 # GUI config
@@ -28,6 +29,7 @@ def draw(event, x, y, flags, param):
 
 
 draw.x = draw.y = 0
+
 
 
 def init_stereo_cam():
@@ -55,87 +57,102 @@ def init_stereo_cam():
         # print(camera.Gain.GetValue())
         # print(camera.ExposureTime.GetValue())
         # print(camera.BalanceRatio.GetValue())
+        camera.AcquisitionFrameRate.SetValue(6)
+    
     return cam_L, cam_R
 
-cam_L, cam_R = init_stereo_cam()
-cam_L.AcquisitionFrameRate.SetValue(6)
-cam_R.AcquisitionFrameRate.SetValue(6)
 
-converter = pylon.ImageFormatConverter()
-# converting to opencv bgr format
-converter.OutputPixelFormat = pylon.PixelType_BGR8packed
-converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
+def main():
+    global phase_dict, imgpts, trackers, pt_r, fx, fy
+    # background process executor for calculating distance
+    executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
+    cam_L, cam_R = init_stereo_cam()
 
-cv.namedWindow('cam_L')
-cv.namedWindow('cam_R')
-cv.setMouseCallback('cam_L', draw)
+    converter = pylon.ImageFormatConverter()
+    # converting to opencv bgr format
+    converter.OutputPixelFormat = pylon.PixelType_BGR8packed
+    converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
 
-while cam_L.IsGrabbing() and cam_R.IsGrabbing():
-    grabResultL = cam_L.RetrieveResult(
-        500, pylon.TimeoutHandling_ThrowException)
-    grabResultR = cam_R.RetrieveResult(
-        500, pylon.TimeoutHandling_ThrowException)
-    
-    # print(grabResultL.GrabSucceeded(), grabResultR.GrabSucceeded())
+    cv.namedWindow('cam_L')
+    cv.namedWindow('cam_R')
+    cv.setMouseCallback('cam_L', draw)
 
-    if grabResultL.GrabSucceeded() and grabResultR.GrabSucceeded(): # update image
-        image0 = converter.Convert(grabResultL)
-        ori_img0 = image0.GetArray()
+    while cam_L.IsGrabbing() and cam_R.IsGrabbing():
+        grabResultL = cam_L.RetrieveResult(
+            500, pylon.TimeoutHandling_ThrowException)
+        grabResultR = cam_R.RetrieveResult(
+            500, pylon.TimeoutHandling_ThrowException)
+        
+        # print(grabResultL.GrabSucceeded(), grabResultR.GrabSucceeded())
 
-        image1 = converter.Convert(grabResultR)
-        ori_img1 = image1.GetArray()
+        if grabResultL.GrabSucceeded() and grabResultR.GrabSucceeded(): # update image
+            image0 = converter.Convert(grabResultL)
+            ori_img0 = image0.GetArray()
 
-    img0, img1 = ori_img0.copy(), ori_img1.copy()  # start proc
-    img0, img1 = distDetect.rectifyImage(img0, img1)
+            image1 = converter.Convert(grabResultR)
+            ori_img1 = image1.GetArray()
 
-    bbox_r = 4 * pt_r
-    for i in range(len(imgpts)):
-        try:
-            success, bbox = trackers[i].update(img0)
-        except IndexError:
-            trackers.append(cv.TrackerCSRT_create())
-            bbox = imgpts[i][0] - bbox_r, imgpts[i][1] - \
-                bbox_r, 2*bbox_r, 2*bbox_r
-            trackers[i].init(img0, bbox)
-        else:
-            if success:
-                imgpts[i] = int(bbox[0] + bbox[2]/2), int(bbox[1] + bbox[3]/2)
+        img0, img1 = ori_img0.copy(), ori_img1.copy()  # start proc
+        img0, img1 = distDetect.rectifyImage(img0, img1)
+
+        bbox_r = 4 * pt_r
+        for i in range(len(imgpts)):
+            try:
+                success, bbox = trackers[i].update(img0)
+            except IndexError:
+                trackers.append(cv.TrackerCSRT_create())
+                bbox = imgpts[i][0] - bbox_r, imgpts[i][1] - \
+                    bbox_r, 2*bbox_r, 2*bbox_r
+                trackers[i].init(img0, bbox)
+            else:
+                if success:
+                    imgpts[i] = int(bbox[0] + bbox[2]/2), int(bbox[1] + bbox[3]/2)
 
 
-    mousept = (draw.x, draw.y)
-    if len(imgpts) == 0:
-        img0 = cv.circle(img0, mousept, pt_r)
-    elif len(imgpts) == 1:
-        img0 = cv.circle(img0, imgpts[0], pt_r)
-        img0 = cv.circle(img0, mousept, pt_r)
-        img0 = cv.line(img0, imgpts[0], mousept)
-    elif len(imgpts) == 2:
-        if phase_dict[2] == 'calculating distance':
-            phase_dict[2] += f': {distDetect.getDistance(img0, img1, imgpts[0], imgpts[1])}'
-        img0 = cv.circle(img0, imgpts[0], pt_r)
-        img0 = cv.circle(img0, imgpts[1], pt_r)
-        img0 = cv.line(img0, imgpts[0], imgpts[1])
+        mousept = (draw.x, draw.y)
+        if len(imgpts) == 0:
+            img0 = cv.circle(img0, mousept, pt_r)
+        elif len(imgpts) == 1:
+            img0 = cv.circle(img0, imgpts[0], pt_r)
+            img0 = cv.circle(img0, mousept, pt_r)
+            img0 = cv.line(img0, imgpts[0], mousept)
+        elif len(imgpts) == 2:
+            img0 = cv.circle(img0, imgpts[0], pt_r)
+            img0 = cv.circle(img0, imgpts[1], pt_r)
+            img0 = cv.line(img0, imgpts[0], imgpts[1])
 
-    cv.setWindowTitle('cam_L', phase_dict[len(imgpts)])
-    # cv.setWindowTitle 'cam_R'
+        if len(imgpts) == 2:
+            if phase_dict[2] == 'calculating distance: ':
+                try:
+                    if f.done():
+                        phase_dict[2] += f'{f.result()}'
+                except NameError:
+                    f = executor.submit(distDetect.getDistance, img0, img1, imgpts[0], imgpts[1])
+            
+        
+        cv.setWindowTitle('cam_L', phase_dict[len(imgpts)])
+        # cv.setWindowTitle 'cam_R'
 
-    vimg0 = cv.resize(img0, None, fx=fx, fy=fy)
-    vimg1 = cv.resize(img1, None, fx=fx, fy=fy)
-    cv.imshow('cam_L', vimg0)
-    cv.imshow('cam_R', vimg1)
+        vimg0 = cv.resize(img0, None, fx=fx, fy=fy)
+        vimg1 = cv.resize(img1, None, fx=fx, fy=fy)
+        cv.imshow('cam_L', vimg0)
+        cv.imshow('cam_R', vimg1)
 
-    k = cv.waitKey(1)
-    if k == 27:  # ESC
-        break
-    if k == ord('r'):
-        imgpts = []
-        trackers = []
-        phase_dict[2] = 'calculating distance'
-    grabResultL.Release()
-    grabResultR.Release()
+        k = cv.waitKey(1)
+        if k == 27:  # ESC
+            break
+        if k == ord('r'):
+            imgpts = []
+            trackers = []
+            phase_dict[2] = 'calculating distance: '
+        grabResultL.Release()
+        grabResultR.Release()
 
-# Releasing the resource
-cam_L.StopGrabbing()
-cam_R.StopGrabbing()
+    # Releasing the resource
+    cam_L.StopGrabbing()
+    cam_R.StopGrabbing()
 
-cv.destroyAllWindows()
+    cv.destroyAllWindows()
+
+if __name__ == '__main__':
+    main()
