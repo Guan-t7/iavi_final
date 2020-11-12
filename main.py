@@ -7,6 +7,8 @@ import numpy as np
 
 phase_dict = {0: 'LBUTTON click to give point 1', 1: 'give second point', 2: 'calculating distance'}
 imgpts = []
+trackers = []
+# GUI config
 pt_r = 20
 fx = fy = 0.25
 cv.circle = partial(cv.circle, color=(0, 0, 255),
@@ -46,10 +48,13 @@ def init_stereo_cam():
     cam_L.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
     cam_R.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
 
-    for camera in [cam_L, cam_R]:
+    for camera in [cam_L, cam_R]:    
         camera.GainAuto.SetValue("Off")
         camera.ExposureAuto.SetValue("Off")
         camera.BalanceWhiteAuto.SetValue("Off")
+        # print(camera.Gain.GetValue())
+        # print(camera.ExposureTime.GetValue())
+        # print(camera.BalanceRatio.GetValue())
     return cam_L, cam_R
 
 cam_L, cam_R = init_stereo_cam()
@@ -71,7 +76,7 @@ while cam_L.IsGrabbing() and cam_R.IsGrabbing():
     grabResultR = cam_R.RetrieveResult(
         500, pylon.TimeoutHandling_ThrowException)
     
-    print(grabResultL.GrabSucceeded(), grabResultR.GrabSucceeded())
+    # print(grabResultL.GrabSucceeded(), grabResultR.GrabSucceeded())
 
     if grabResultL.GrabSucceeded() and grabResultR.GrabSucceeded(): # update image
         image0 = converter.Convert(grabResultL)
@@ -82,6 +87,20 @@ while cam_L.IsGrabbing() and cam_R.IsGrabbing():
 
     img0, img1 = ori_img0.copy(), ori_img1.copy()  # start proc
     img0, img1 = distDetect.rectifyImage(img0, img1)
+
+    bbox_r = 4 * pt_r
+    for i in range(len(imgpts)):
+        try:
+            success, bbox = trackers[i].update(img0)
+        except IndexError:
+            trackers.append(cv.TrackerCSRT_create())
+            bbox = imgpts[i][0] - bbox_r, imgpts[i][1] - \
+                bbox_r, 2*bbox_r, 2*bbox_r
+            trackers[i].init(img0, bbox)
+        else:
+            if success:
+                imgpts[i] = int(bbox[0] + bbox[2]/2), int(bbox[1] + bbox[3]/2)
+
 
     mousept = (draw.x, draw.y)
     if len(imgpts) == 0:
@@ -96,7 +115,6 @@ while cam_L.IsGrabbing() and cam_R.IsGrabbing():
         img0 = cv.circle(img0, imgpts[0], pt_r)
         img0 = cv.circle(img0, imgpts[1], pt_r)
         img0 = cv.line(img0, imgpts[0], imgpts[1])
-    else: raise AssertionError()
 
     cv.setWindowTitle('cam_L', phase_dict[len(imgpts)])
     # cv.setWindowTitle 'cam_R'
@@ -111,6 +129,7 @@ while cam_L.IsGrabbing() and cam_R.IsGrabbing():
         break
     if k == ord('r'):
         imgpts = []
+        trackers = []
         phase_dict[2] = 'calculating distance'
     grabResultL.Release()
     grabResultR.Release()
