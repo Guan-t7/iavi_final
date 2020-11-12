@@ -126,6 +126,7 @@ def main():
                 try:
                     if f.done():
                         phase_dict[2] += f'{f.result()}'
+                        del f
                 except NameError:
                     f = executor.submit(distDetect.getDistance, img0, img1, imgpts[0], imgpts[1])
             
