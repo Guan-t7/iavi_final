@@ -16,50 +16,25 @@ from functools import partial
 
 F.upsample = partial(F.upsample, align_corners=True)
 
-# 2012 data /media/jiaren/ImageNet/data_scene_flow_2012/testing/
-
-parser = argparse.ArgumentParser(description='PSMNet')
-parser.add_argument('--KITTI', default='2015',
-                    help='KITTI version')
-parser.add_argument('--datapath', default='/media/jiaren/ImageNet/data_scene_flow_2015/testing/',
-                    help='select model')
-parser.add_argument('--loadmodel', default='./trained/pretrained_model_KITTI2015.tar',
-                    help='loading model')
-parser.add_argument('--leftimg', default= './VO04_L.png',
-                    help='load model')
-parser.add_argument('--rightimg', default= './VO04_R.png',
-                    help='load model')                                      
-parser.add_argument('--model', default='stackhourglass',
-                    help='select model')
-parser.add_argument('--maxdisp', type=int, default=192,
-                    help='maxium disparity')
-parser.add_argument('--no-cuda', action='store_true', default=False,
-                    help='enables CUDA training')
-parser.add_argument('--seed', type=int, default=1, metavar='S',
-                    help='random seed (default: 1)')
-args = parser.parse_args()
-args.cuda = not args.no_cuda and torch.cuda.is_available()
+args = argparse.Namespace()
+args.seed = 1
+args.maxdisp = 192
+args.cuda = True
+args.loadmodel = './trained/pretrained_model_KITTI2012.tar'
 
 torch.manual_seed(args.seed)
-if args.cuda:
-    torch.cuda.manual_seed(args.seed)
-
-if args.model == 'stackhourglass':
-    model = stackhourglass(args.maxdisp)
-elif args.model == 'basic':
-    model = basic(args.maxdisp)
-else:
-    print('no model')
-
+torch.cuda.manual_seed(args.seed)
+model = stackhourglass(args.maxdisp)
 model = nn.DataParallel(model, device_ids=[0])
 model.cuda()
-
 if args.loadmodel is not None:
     print('load PSMNet')
     state_dict = torch.load(args.loadmodel)
     model.load_state_dict(state_dict['state_dict'])
 
-print('Number of model parameters: {}'.format(sum([p.data.nelement() for p in model.parameters()])))
+print('Number of model parameters: {}'.format(
+    sum([p.data.nelement() for p in model.parameters()])))
+
 
 def test(imgL,imgR):
         model.eval()
@@ -77,20 +52,12 @@ def test(imgL,imgR):
         return pred_disp
 
 
-def main():
+def get_disp(imgL_o, imgR_o):
 
         normal_mean_var = {'mean': [0.485, 0.456, 0.406],
                             'std': [0.229, 0.224, 0.225]}
         infer_transform = transforms.Compose([transforms.ToTensor(),
                                               transforms.Normalize(**normal_mean_var)])    
-
-        imgL_o = Image.open(args.leftimg).convert('RGB')
-        imgR_o = Image.open(args.rightimg).convert('RGB')
-
-        #! downsize
-        imgL_o = imgL_o.reduce(4)
-        imgR_o = imgR_o.reduce(4)
-        
 
         imgL = infer_transform(imgL_o)
         imgR = infer_transform(imgR_o) 
@@ -122,15 +89,7 @@ def main():
         else:
             img = pred_disp
         
-        img = (img*256).astype('uint16')
-        img = Image.fromarray(img)
-        img.save('Test_disparity.png')
-
-if __name__ == '__main__':
-   main()
-
-
-
-
-
-
+        img = (img * 256).astype('uint16')
+        return img
+        # img = Image.fromarray(img)
+        # img.save('Test_disparity.png')

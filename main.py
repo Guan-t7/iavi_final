@@ -4,13 +4,15 @@ import distDetect
 import concurrent.futures
 from functools import partial
 import numpy as np
+from PIL import Image
+import Test_img
 
 phase_dict = {0: 'LBUTTON click to give point 1',
               1: 'give second point', 2: 'calculating distance: '}
 imgpts = []
 trackers = []
 # GUI config
-pt_r = 20
+pt_r = 10
 fx = fy = 0.25
 cv.circle = partial(cv.circle, color=(0, 0, 255),
                     thickness=int(0.2 * pt_r), lineType=cv.LINE_AA)
@@ -21,10 +23,10 @@ cv.line = partial(cv.line, color=(0, 0, 255),
 #! point coordinate based on original image
 def draw(event, x, y, flags, param):
     global phase, imgpts
-    draw.x, draw.y = int(x/fx), int(y/fy)
+    draw.x, draw.y = x, y
     if len(imgpts) != 2:
         if event == cv.EVENT_LBUTTONDOWN:
-            imgpts.append((int(x/fx), int(y/fy))) 
+            imgpts.append((x, y))
             phase = f'point {len(imgpts)} acquired'
 
 
@@ -66,34 +68,41 @@ def main():
     global phase_dict, imgpts, trackers, pt_r, fx, fy
     # background process executor for calculating distance
     executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
-    cam_L, cam_R = init_stereo_cam()
+    # cam_L, cam_R = init_stereo_cam()
 
-    converter = pylon.ImageFormatConverter()
-    # converting to opencv bgr format
-    converter.OutputPixelFormat = pylon.PixelType_BGR8packed
-    converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
+    # converter = pylon.ImageFormatConverter()
+    # # converting to opencv bgr format
+    # converter.OutputPixelFormat = pylon.PixelType_BGR8packed
+    # converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
 
     cv.namedWindow('cam_L')
     cv.namedWindow('cam_R')
     cv.setMouseCallback('cam_L', draw)
 
-    while cam_L.IsGrabbing() and cam_R.IsGrabbing():
-        grabResultL = cam_L.RetrieveResult(
-            500, pylon.TimeoutHandling_ThrowException)
-        grabResultR = cam_R.RetrieveResult(
-            500, pylon.TimeoutHandling_ThrowException)
+    #TODO saved pic -> cam
+    ori_img0 = cv.imread(r'C:/Users/administrater/Desktop/Archived Courses/IAVI/IAVI_Lab3/pic/image2/L12.bmp')
+    ori_img1 = cv.imread(r'C:/Users/administrater/Desktop/Archived Courses/IAVI/IAVI_Lab3/pic/image2/R12.bmp')
+    ori_img0, ori_img1 = distDetect.rectifyImage(ori_img0, ori_img1)
+    #! downsize
+    ori_img0 = cv.resize(ori_img0, None, fx=fx, fy=fy)
+    ori_img1 = cv.resize(ori_img1, None, fx=fx, fy=fy)
+    while True:
+    # while cam_L.IsGrabbing() and cam_R.IsGrabbing():
+    #     grabResultL = cam_L.RetrieveResult(
+    #         500, pylon.TimeoutHandling_ThrowException)
+    #     grabResultR = cam_R.RetrieveResult(
+    #         500, pylon.TimeoutHandling_ThrowException)
         
-        # print(grabResultL.GrabSucceeded(), grabResultR.GrabSucceeded())
+    #     # print(grabResultL.GrabSucceeded(), grabResultR.GrabSucceeded())
 
-        if grabResultL.GrabSucceeded() and grabResultR.GrabSucceeded(): # update image
-            image0 = converter.Convert(grabResultL)
-            ori_img0 = image0.GetArray()
+    #     if grabResultL.GrabSucceeded() and grabResultR.GrabSucceeded(): # update image
+    #         image0 = converter.Convert(grabResultL)
+    #         ori_img0 = image0.GetArray()
 
-            image1 = converter.Convert(grabResultR)
-            ori_img1 = image1.GetArray()
+    #         image1 = converter.Convert(grabResultR)
+    #         ori_img1 = image1.GetArray()
 
         img0, img1 = ori_img0.copy(), ori_img1.copy()  # start proc
-        img0, img1 = distDetect.rectifyImage(img0, img1)
 
         bbox_r = 2 * pt_r
         for i in range(len(imgpts)):
@@ -123,21 +132,31 @@ def main():
 
         if len(imgpts) == 2:
             if phase_dict[2] == 'calculating distance: ':
-                try:
-                    if f.done():
-                        phase_dict[2] += f'{f.result()}'
-                        del f
-                except NameError:
-                    f = executor.submit(distDetect.getDistance, img0, img1, imgpts[0], imgpts[1])
+                #! use unscribbled image
+                imgL_o = Image.fromarray(ori_img0).convert('RGB')
+                imgR_o = Image.fromarray(ori_img1).convert('RGB')
+                 
+                disparity = Test_img.get_disp(imgL_o, imgR_o)
+                disparity = (disparity // 256).astype('uint8')
+                disp_colored = cv.applyColorMap(disparity, cv.COLORMAP_JET)
+                phase_dict[2] += f'disparity done'
+                #TODO background
+                # try:
+                #     if f.done():
+                #         phase_dict[2] += f'{f.result()}'
+                #         del f
+                # except NameError:
+                #     f = executor.submit(distDetect.getDistance, img0, img1, imgpts[0], imgpts[1])
             
         
         cv.setWindowTitle('cam_L', phase_dict[len(imgpts)])
         # cv.setWindowTitle 'cam_R'
-
-        vimg0 = cv.resize(img0, None, fx=fx, fy=fy)
-        vimg1 = cv.resize(img1, None, fx=fx, fy=fy)
-        cv.imshow('cam_L', vimg0)
-        cv.imshow('cam_R', vimg1)
+        cv.imshow('cam_L', img0)
+        cv.imshow('cam_R', img1)
+        try:
+            cv.imshow('disparity', disp_colored)
+        except:
+            pass
 
         k = cv.waitKey(1)
         if k == 27:  # ESC
@@ -146,12 +165,12 @@ def main():
             imgpts = []
             trackers = []
             phase_dict[2] = 'calculating distance: '
-        grabResultL.Release()
-        grabResultR.Release()
+    #     grabResultL.Release()
+    #     grabResultR.Release()
 
-    # Releasing the resource
-    cam_L.StopGrabbing()
-    cam_R.StopGrabbing()
+    # # Releasing the resource
+    # cam_L.StopGrabbing()
+    # cam_R.StopGrabbing()
 
     cv.destroyAllWindows()
 
