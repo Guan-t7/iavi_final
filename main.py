@@ -128,23 +128,19 @@ def main():
             img0 = cv.line(img0, imgpts[0], imgpts[1])
 
         if len(imgpts) == 2:
-            if phase_dict[2] == 'calculating distance: ':
-                #! use unscribbled image
-                imgL_o = Image.fromarray(ori_img0).convert('RGB')
-                imgR_o = Image.fromarray(ori_img1).convert('RGB')
-                 
-                disparity = Test_img.get_disp(imgL_o, imgR_o)
-                disparity = (disparity // 256).astype('uint8')
-                disp_colored = cv.applyColorMap(disparity, cv.COLORMAP_JET)
-                
-                phase_dict[2] += f'{distDetect.getDistance(disparity, imgpts[0], imgpts[1])}'
-                #TODO background
-                # try:
-                #     if f.done():
-                #         phase_dict[2] += f'{f.result()}'
-                #         del f
-                # except NameError:
-                #     f = executor.submit(distDetect.getDistance, img0, img1, imgpts[0], imgpts[1])
+            #! use unscribbled image
+            imgL_o = Image.fromarray(ori_img0).convert('RGB')
+            imgR_o = Image.fromarray(ori_img1).convert('RGB')
+
+            try:
+                if f.done():
+                    disparity = f.result()
+                    del f
+                    disparity = (disparity // 256).astype('uint8')
+                    disp_colored = cv.applyColorMap(disparity, cv.COLORMAP_JET)
+                    phase_dict[2] = f'calculating distance: {distDetect.getDistance(disparity, imgpts[0], imgpts[1])}'    
+            except NameError:
+                f = executor.submit(Test_img.get_disp, imgL_o, imgR_o)
             
         
         cv.setWindowTitle('cam_L', phase_dict[len(imgpts)])
