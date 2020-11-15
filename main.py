@@ -20,7 +20,6 @@ cv.line = partial(cv.line, color=(0, 0, 255),
                   thickness=int(0.2 * pt_r), lineType=cv.LINE_AA)
 
 # mouse callback function
-#! point coordinate based on original image
 def draw(event, x, y, flags, param):
     global phase, imgpts
     draw.x, draw.y = x, y
@@ -68,40 +67,38 @@ def main():
     global phase_dict, imgpts, trackers, pt_r, fx, fy
     # background process executor for calculating distance
     executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
-    # cam_L, cam_R = init_stereo_cam()
 
-    # converter = pylon.ImageFormatConverter()
-    # # converting to opencv bgr format
-    # converter.OutputPixelFormat = pylon.PixelType_BGR8packed
-    # converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
+    cam_L, cam_R = init_stereo_cam()
+
+    converter = pylon.ImageFormatConverter()
+    # converting to opencv bgr format
+    converter.OutputPixelFormat = pylon.PixelType_BGR8packed
+    converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
 
     cv.namedWindow('cam_L')
     cv.namedWindow('cam_R')
     cv.setMouseCallback('cam_L', draw)
 
-    #TODO saved pic -> cam
-    ori_img0 = cv.imread(r'C:/Users/administrater/Desktop/Archived Courses/IAVI/IAVI_Lab3/pic/image2/L12.bmp')
-    ori_img1 = cv.imread(r'C:/Users/administrater/Desktop/Archived Courses/IAVI/IAVI_Lab3/pic/image2/R12.bmp')
-    ori_img0, ori_img1 = distDetect.rectifyImage(ori_img0, ori_img1)
-    #! downsize
-    ori_img0 = cv.resize(ori_img0, None, fx=fx, fy=fy)
-    ori_img1 = cv.resize(ori_img1, None, fx=fx, fy=fy)
-    while True:
-    # while cam_L.IsGrabbing() and cam_R.IsGrabbing():
-    #     grabResultL = cam_L.RetrieveResult(
-    #         500, pylon.TimeoutHandling_ThrowException)
-    #     grabResultR = cam_R.RetrieveResult(
-    #         500, pylon.TimeoutHandling_ThrowException)
+    while cam_L.IsGrabbing() and cam_R.IsGrabbing():
+        grabResultL = cam_L.RetrieveResult(
+            500, pylon.TimeoutHandling_ThrowException)
+        grabResultR = cam_R.RetrieveResult(
+            500, pylon.TimeoutHandling_ThrowException)
         
-    #     # print(grabResultL.GrabSucceeded(), grabResultR.GrabSucceeded())
+        # print(grabResultL.GrabSucceeded(), grabResultR.GrabSucceeded())
 
-    #     if grabResultL.GrabSucceeded() and grabResultR.GrabSucceeded(): # update image
-    #         image0 = converter.Convert(grabResultL)
-    #         ori_img0 = image0.GetArray()
+        if grabResultL.GrabSucceeded() and grabResultR.GrabSucceeded(): # update image
+            image0 = converter.Convert(grabResultL)
+            ori_img0 = image0.GetArray()
 
-    #         image1 = converter.Convert(grabResultR)
-    #         ori_img1 = image1.GetArray()
-
+            image1 = converter.Convert(grabResultR)
+            ori_img1 = image1.GetArray()
+            # undistort
+            ori_img0, ori_img1 = distDetect.rectifyImage(ori_img0, ori_img1)
+            #! downsize
+            ori_img0 = cv.resize(ori_img0, None, fx=fx, fy=fy)
+            ori_img1 = cv.resize(ori_img1, None, fx=fx, fy=fy)
+        
         img0, img1 = ori_img0.copy(), ori_img1.copy()  # start proc
 
         bbox_r = 2 * pt_r
@@ -139,7 +136,8 @@ def main():
                 disparity = Test_img.get_disp(imgL_o, imgR_o)
                 disparity = (disparity // 256).astype('uint8')
                 disp_colored = cv.applyColorMap(disparity, cv.COLORMAP_JET)
-                phase_dict[2] += f'disparity done'
+                
+                phase_dict[2] += f'{distDetect.getDistance(disparity, imgpts[0], imgpts[1])}'
                 #TODO background
                 # try:
                 #     if f.done():
@@ -165,12 +163,12 @@ def main():
             imgpts = []
             trackers = []
             phase_dict[2] = 'calculating distance: '
-    #     grabResultL.Release()
-    #     grabResultR.Release()
+        grabResultL.Release()
+        grabResultR.Release()
 
-    # # Releasing the resource
-    # cam_L.StopGrabbing()
-    # cam_R.StopGrabbing()
+    # Releasing the resource
+    cam_L.StopGrabbing()
+    cam_R.StopGrabbing()
 
     cv.destroyAllWindows()
 
