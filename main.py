@@ -58,7 +58,7 @@ def init_stereo_cam():
         # print(camera.Gain.GetValue())
         # print(camera.ExposureTime.GetValue())
         # print(camera.BalanceRatio.GetValue())
-        camera.AcquisitionFrameRate.SetValue(6)
+        camera.AcquisitionFrameRate.SetValue(9)
     
     return cam_L, cam_R
 
