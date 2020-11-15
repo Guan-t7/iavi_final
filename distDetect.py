@@ -11,8 +11,8 @@ def rectifyImage(imgL, imgR):
     
 def getXYZ(disparity, p):
     
-    x = p[0]
-    y = p[1]
+    x = p[0]*4
+    y = p[1]*4
     z = disparity[p[1],p[0]]
     xyzw = np.array([[x],[y],[z],[1.0]])
     XYZW = np.matmul(cc.Q, xyzw)
