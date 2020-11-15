@@ -95,7 +95,7 @@ def main():
         img0, img1 = ori_img0.copy(), ori_img1.copy()  # start proc
         img0, img1 = distDetect.rectifyImage(img0, img1)
 
-        bbox_r = 4 * pt_r
+        bbox_r = 2 * pt_r
         for i in range(len(imgpts)):
             try:
                 success, bbox = trackers[i].update(img0)

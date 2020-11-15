@@ -1,9 +1,6 @@
-__pycache__/camera_configs.cpython-36.pyc
-__pycache__/distDetect.cpython-36.pyc
 .vscode/launch.json
 .vscode/.ropeproject/config.py
 .vscode/.ropeproject/objectdb
-*.ipynb
-__pycache__/distDetect.cpython-38.pyc
-__pycache__/camera_configs.cpython-38.pyc
+*.pyc
 workspace.code-workspace
+.vscode/settings.json
